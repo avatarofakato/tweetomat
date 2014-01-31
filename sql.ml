@@ -1,7 +1,10 @@
 (* file: sql.ml *)
 open String
+open Pervasives
 open Printf
 open Parser
+
+exception Sql_error of string
 
 (* TODO exceptions *)
 let cut_quot_marks str =
@@ -33,12 +36,25 @@ let string_of_column = function
 	| `Favorites -> "Favorites"
 	| `Score -> "Score"
 	| `Everything -> "*"
+	| `Count -> "Count(*)"
 
 let element_in_set ~column ~set =
 	string_of_column column ^
 	" in (" ^
 	String.concat "," set ^
 	")"
+
+let get_field_from_tweet tweet field =
+	match tweet with
+	| { tweetID = t; userID = u; content = c; date = d; retweets = r; favorites = f; score = s } ->
+		(match field with
+		| `ID -> string_of_int t
+		| `UserID -> string_of_int u
+		| `Content -> c
+		| `Date -> d
+		| `Retweets -> string_of_int r
+		| `Favorites -> string_of_int f
+		| `Score -> string_of_int s)
 
 (* Returns list of rows each containing column (as string) *)
 let get_from_sql ~dbh ?(what = [`Everything]) ~from ?(where = "1=1") () =
@@ -83,16 +99,25 @@ let get_tweets_ids dbh subs =
 	List.flatten (get_from_sql ~dbh:dbh ~what:[`ID] ~from:`Tweet
 		~where:where ())
 
-(* TODO rest of cases *)
-let get_id_of_name dbh name =
-	match
-	List.flatten (get_from_sql ~dbh:dbh ~what:[`ID] ~from:`TwitterUsers
-		~where:((string_of_column `Name) ^ "='" ^ name ^ "'") ()) with
-	| h::t -> h
+let does_db_contain dbh table id =
+	match (get_from_sql ~dbh:dbh ~what:[`Count] ~from:table
+		~where:(element_in_set ~column:`ID ~set:[id]) ()) with
+		| [[h]] -> (match h with
+			| "0" -> false
+			| "1" -> true
+			| _ -> raise (Sql_error ("does_db_contain(" ^ id ^ ")")))
+		| _ -> raise (Sql_error ("does_db_contain(" ^ id ^ ")"))
 
+let get_id_of_name dbh name =
+	match (get_from_sql ~dbh:dbh ~what:[`ID] ~from:`TwitterUsers
+		~where:((string_of_column `Name) ^ "='" ^ name ^ "'") ()) with
+		| [[h]] -> h
+		| _ -> raise (Sql_error ("get_id_of_name(" ^ name ^ ")"))
+
+(* TODO string concatenation instead of sprintf *)
 let make_string_of_tweet_row row =
 	match row with
-	| t::u::c::d::r::f::n::[] -> sprintf 
+	| t::u::c::d::r::f::n::[] -> sprintf
 		"tweetID = %s\nuserID = %s\ncontent = %s\ndate = %s\nretweets = %s\nfavorites = %s\nscore = %s\n"
 		t u c d r f n
 	| _ -> "Error\n"
