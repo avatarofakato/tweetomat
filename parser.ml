@@ -3,6 +3,7 @@
 open Yojson.Basic.Util
 
 exception No_posts of string
+exception Twitter_error
 
 (* TODO some type for dates (maybe something already exists?), check ID scope
  * for possible overflows, move to *.mli, include hashtags and tags to content *)
@@ -58,6 +59,7 @@ let string_of_tweet tweet_to_parse =
 		Printf.sprintf
 		"\ntweetID = %d\nuserID = %d\ncontent = %s\ndate = %s\nretweets = %d\nfavorites = %d\nscore = %d\n"
 		t u c d r f s
+	(* | _ -> raise Twitter_error *)
 
 let string_of_user user_to_parse =
 	match user_to_parse with
@@ -65,19 +67,25 @@ let string_of_user user_to_parse =
 		Printf.sprintf
 		"\nID = %d\nname = %s\nfollowers = %d\ntweetsNumber = %d\npriority = %d\n"
 		i n f t p
+	(* | _ -> raise Twitter_error *)
 
-(* FIXME ~atributes *)
 let get_parsed_tweets ~number_of_tweets:num ~user:user =
 	let json_raw = Connection.get_user_tweets ~number_of_tweets:num ~user:user in
 	let json = (Yojson.Basic.from_string json_raw) in
-	let json_list = json |> to_list in
-	List.map (parse_tweet basic_score) json_list
+	let json_list = try Some (json |> to_list) with _ -> None in
+	match json_list with
+	| Some x -> List.map (parse_tweet basic_score) x
+	| None -> raise Twitter_error
 
-(* TODO exceptions rest of cases in match etc *)
 let get_user ~user:user =
 	let json_raw = Connection.get_user_tweets ~number_of_tweets:1 ~user:user in
 	let json = (Yojson.Basic.from_string json_raw) in
-	let json_list = json |> to_list in
+	let json_list = try Some (json |> to_list) with _ -> None in
 	match json_list with
-	| h::t -> parse_user h
-	| _ -> raise (No_posts user)
+	| Some x ->
+		begin
+			match x with
+			| h::t -> parse_user h
+			| _ -> raise (No_posts user)
+		end
+	| None -> raise Twitter_error

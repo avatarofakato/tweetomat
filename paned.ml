@@ -12,18 +12,26 @@ let str_col_subs = cols_subs#add Gobject.Data.string
 let cols_tweets = new GTree.column_list
 let str_col_tweets = cols_tweets#add Gobject.Data.string
 
-let refresh_subs_list dbh (model:#GTree.list_store) =
+let refresh_list dbh column content (model:#GTree.list_store) =
 	model#clear();
 	List.iter (fun str ->
 		let it = model#append () in
-		model#set ~row:it ~column:str_col_subs str;) (get_subscribers_names dbh)
+		model#set ~row:it ~column:column str;) content
+
+let refresh_subs_list dbh (model:#GTree.list_store) =
+	refresh_list dbh str_col_subs (get_subscribers_names dbh) (model:#GTree.list_store)
+	(* model#clear(); *)
+	(* List.iter (fun str -> *)
+		(* let it = model#append () in *)
+		(* model#set ~row:it ~column:str_col_subs str;) (get_subscribers_names dbh) *)
 
 let refresh_tweets_list dbh (model:#GTree.list_store) sub_ids =
-	printf "refresh_tweets_list called\n";
-	model#clear();
-	List.iter (fun str -> printf "****\n%s\n****\n" str; flush stdout;
-		let it = model#append () in
-		model#set ~row:it ~column:str_col_tweets str) (get_tweets_ids dbh sub_ids)
+	refresh_list dbh str_col_tweets (get_tweets_ids dbh sub_ids) (model:#GTree.list_store)
+	(* printf "refresh_tweets_list called\n"; *)
+	(* model#clear(); *)
+	(* List.iter (fun str -> printf "****\n%s\n****\n" str; flush stdout; *)
+		(* let it = model#append () in *)
+		(* model#set ~row:it ~column:str_col_tweets str) (get_tweets_ids dbh sub_ids) *)
 
 let selection_changed_subs dbh (model1:#GTree.list_store) (model2:#GTree.list_store) selection () =
 	let pr path =
@@ -47,8 +55,32 @@ let selection_changed_tweets dbh (model:#GTree.list_store) selection (buffer:#GT
 	in
 	List.iter pr selection#get_selected_rows
 
+(* let create_list dbh vpaned callback col str_col content title mode = *)
+	(* let scrolled_window = GBin.scrolled_window *)
+		(* ~hpolicy:`AUTOMATIC ~vpolicy:`AUTOMATIC () ~height:300 in *)
+
+	(* let model = GTree.list_store col in *)
+	(* let treeview = GTree.view ~model ~packing:(scrolled_window#add_with_viewport) () in *)
+
+	(* List.iter (fun str -> *)
+		(* let it = model#append () in *)
+		(* model#set ~row:it ~column:str_col str;) *)
+		(* content; *)
+
+	(* let renderer = GTree.cell_renderer_text [] in *)
+	(* let column = GTree.view_column ~title:title *)
+		(* ~renderer:(renderer, ["text", str_col_subs]) () in *)
+	(* treeview#append_column column; *)
+	(* treeview#selection#set_mode mode; *)
+	(* treeview#selection#connect#changed *)
+		(* ~callback:callback; *)
+	(* vpaned#add1 scrolled_window#coerce; *)
+	(* (model, treeview) *)
+
 (* vbox #1 *)
 let create_list_subs dbh vpaned1 model2 () =
+	(* create_list dbh vpaned1 (selection_changed_subs dbh model model2 treeview#selection)  *)
+	(* cols_subs str_col_subs (get_subscribers_names dbh) "Subscriptions" `MULTIPLE = *)
 	let scrolled_window = GBin.scrolled_window
 		~hpolicy:`AUTOMATIC ~vpolicy:`AUTOMATIC () ~height:300 in
 
@@ -57,7 +89,9 @@ let create_list_subs dbh vpaned1 model2 () =
 
 	List.iter (fun str ->
 		let it = model#append () in
-		model#set ~row:it ~column:str_col_subs str;) (get_subscribers_names dbh);
+		model#set ~row:it ~column:str_col_subs str;)
+		(get_subscribers_names dbh);
+
 	let renderer = GTree.cell_renderer_text [] in
 	let column = GTree.view_column ~title:"Subscriptions"
 		~renderer:(renderer, ["text", str_col_subs]) () in
@@ -90,8 +124,7 @@ let create_list_tweets dbh vpaned2 buffer () =
 	treeview#selection#connect#changed
 		~callback:(selection_changed_tweets dbh model treeview#selection buffer);
 	vpaned2#add1 scrolled_window#coerce;
-	model
-
+	(model, treeview)
 
 (* vbox #3 *)
 let insert_text (buffer: GText.buffer) =
@@ -106,7 +139,7 @@ let rem_single_sub entry () =
 let download_tweets dbh (model1:#GTree.list_store) (model2:#GTree.list_store) selection () =
 	(* TODO there is some duplication :v *)
 	let add_or_upload tweet =
-		match (does_db_contain dbh `TwitterUsers 
+		match (does_db_contain_id dbh `Tweet
 		(get_field_from_tweet tweet `ID)) with
 		| true -> ()
 		| false -> add_tweet tweet dbh () in
@@ -120,7 +153,8 @@ let download_tweets dbh (model1:#GTree.list_store) (model2:#GTree.list_store) se
 	in
 	let selected_users = List.map pr selection#get_selected_rows in
 	List.iter (fun x -> printf "NICK: %s\n" x; flush stdout) selected_users;
-	List.iter single_user selected_users;
+	try List.iter single_user selected_users with
+	| _ -> printf "Error while downloading tweets\n";
 	refresh_tweets_list dbh model2 (List.map (get_id_of_name dbh) selected_users)
 
 (* TODO change it for something better *)
@@ -157,8 +191,7 @@ let main () =
 	
 	(* #2 column *)
 	let vpaned2 = GPack.paned `VERTICAL ~packing:vbox2#add () in
-	(* let model2 = create_list_tweets dbh vpaned2 () in *)
-	let model2 = create_list_tweets dbh vpaned2 buffer3 () in
+	let (model2, treeview2) = create_list_tweets dbh vpaned2 buffer3 () in
 
 	(* #1 column *)
 	let vpaned1 = GPack.paned `VERTICAL ~packing:vbox1#add () in
@@ -171,7 +204,6 @@ let main () =
 	ignore (button1#connect#clicked ~callback:(add_user entry dbh model1));
 	let button2 = GButton.button ~label:"Unsubscribe" ~packing:vbox1#add () in
 	ignore (button2#connect#clicked ~callback:(rem_single_sub entry));
-	(* vpaned1#add1 _list; *)
 
 	(* #2 column *)
 	(* Button *)
@@ -179,14 +211,8 @@ let main () =
 	ignore (button1#connect#clicked 
 		~callback:(download_tweets dbh model1 model2 treeview1#selection));
 
-	(* let entry = make_first_column hbox dbh vbox1 in *)
-	(* make_second_column hbox dbh buffer3; *)
 	make_third_column hbox buffer3 scrolled_window3;
-	(* TODO delete *)
-	printf "******\n%s\n******\n" (match (does_db_contain dbh `TwitterUsers "48") with
-	| true -> "ISTNIEJE"
-	| false -> "NIE ISTNIEJE");
-	flush stdout;
+
 	window#show ();
 	GMain.Main.main ()
 

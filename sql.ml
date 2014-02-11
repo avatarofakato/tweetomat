@@ -57,7 +57,7 @@ let get_field_from_tweet tweet field =
 		| `Score -> string_of_int s)
 
 (* Returns list of rows each containing column (as string) *)
-let get_from_sql ~dbh ?(what = [`Everything]) ~from ?(where = "1=1") () =
+let get_from_sql ~dbh ?(what = [`Everything]) ~from ?(where = "") () =
 	let what = String.concat "," (List.map string_of_column what) in
 	(* let from = String.concat "," (List.map string_of_table from) in *)
 	let where = match where with
@@ -99,14 +99,23 @@ let get_tweets_ids dbh subs =
 	List.flatten (get_from_sql ~dbh:dbh ~what:[`ID] ~from:`Tweet
 		~where:where ())
 
-let does_db_contain dbh table id =
+let does_db_contain_id dbh table id =
 	match (get_from_sql ~dbh:dbh ~what:[`Count] ~from:table
 		~where:(element_in_set ~column:`ID ~set:[id]) ()) with
 		| [[h]] -> (match h with
 			| "0" -> false
 			| "1" -> true
-			| _ -> raise (Sql_error ("does_db_contain(" ^ id ^ ")")))
-		| _ -> raise (Sql_error ("does_db_contain(" ^ id ^ ")"))
+			| _ -> raise (Sql_error ("does_db_contain_id(" ^ id ^ ")")))
+		| _ -> raise (Sql_error ("does_db_contain_id(" ^ id ^ ")"))
+
+let does_db_contain_name dbh name =
+	match (get_from_sql ~dbh:dbh ~what:[`Count] ~from:`TwitterUsers
+		~where:((string_of_column `Name) ^ "='" ^ name ^ "'") ()) with
+		| [[h]] -> (match h with
+			| "0" -> false
+			| "1" -> true
+			| _ -> raise (Sql_error ("does_db_contain_name(" ^ name ^ ")")))
+		| _ -> raise (Sql_error ("does_db_contain_name(" ^ name ^ ")"))
 
 let get_id_of_name dbh name =
 	match (get_from_sql ~dbh:dbh ~what:[`ID] ~from:`TwitterUsers
@@ -131,8 +140,12 @@ let get_tweet_of_id dbh id =
 
 (* Adds user to database *)
 let add_subscription entry dbh () =
+	match (does_db_contain_name dbh entry#text) with
+	| true -> printf "date base already contains %s\n" entry#text
+	| false ->
 	let query = "insert into TwitterUsers (ID, Name, Followers, TweetsNumber, Priority) values ($1, $2, $3, $4, $5)" in
 	ignore (PGOCaml.prepare dbh ~query ());
+	try
 	match (get_user ~user:entry#text) with
 	| { id = i; name = n; followers = f; tweetsNumber = t; priority = p } ->
 		ignore (PGOCaml.execute dbh 
@@ -142,8 +155,8 @@ let add_subscription entry dbh () =
 			 Some (string_of_int f);
 			 Some (string_of_int t);
 			 Some (string_of_int p)]
-			());
-	()
+			()) with
+	| _ -> printf "Error while adding subscription\n"
 
 (* TODO value too long for type character varying(140) *)
 let add_tweet tweet dbh () =
