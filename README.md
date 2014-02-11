@@ -1,3 +1,3 @@
 tweetomat
 =========
-Projekt zalcizeniowy na Bazy Danych 2013/2014
+Projekt zaliczeniowy na Bazy Danych 2013/2014
