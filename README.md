@@ -1,3 +1,7 @@
-tweetomat
+laboratory project for DB course
 =========
-Projekt zaliczeniowy na Bazy Danych 2013/2014
+http://students.mimuw.edu.pl/~ab336901/BD/
+TODO:
+* FLAGS
+* (TAGS)
+
