@@ -87,7 +87,7 @@ let update_tweets dbh r f =
 	printf "%s\n" query;
 	flush stdout;
 	ignore (PGOCaml.prepare dbh ~query ());
-	PGOCaml.execute dbh ()
+	PGOCaml.execute dbh ~params:[] ()
 
 let get_subscribers_ids dbh =
 	List.flatten (get_from_sql ~dbh:dbh ~what:[`ID] ~from:`TwitterUsers ())

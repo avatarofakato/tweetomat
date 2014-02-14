@@ -237,7 +237,7 @@ let main () =
 		if selected then ( printf "basic\n"; flush stdout;
 			update_tweets dbh 1 1;
 			refresh_tweets_list dbh model2 (List.map (get_id_of_name dbh)
-			(get_selected_users treeview1#selection model1))
+			(get_selected_users treeview1#selection model1));
 		)in
 
 	let favor selected =
@@ -245,7 +245,7 @@ let main () =
 		if selected then ( printf "favors\n"; flush stdout;
 			update_tweets dbh 1 2;
 			refresh_tweets_list dbh model2 (List.map (get_id_of_name dbh)
-			(get_selected_users treeview1#selection model1))
+			(get_selected_users treeview1#selection model1));
 		) in
 
 	let retw selected =
@@ -253,7 +253,7 @@ let main () =
 		if selected then ( printf "retweets\n"; flush stdout;
 			update_tweets dbh 2 1;
 			refresh_tweets_list dbh model2 (List.map (get_id_of_name dbh)
-			(get_selected_users treeview1#selection model1))
+			(get_selected_users treeview1#selection model1));
 		) in
 
 	let algorithms = [
