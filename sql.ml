@@ -141,7 +141,7 @@ let get_tweet_of_id dbh id =
 (* Adds user to database *)
 let add_subscription entry dbh () =
 	match (does_db_contain_name dbh entry#text) with
-	| true -> printf "date base already contains %s\n" entry#text
+	| true -> printf "date base already contains %s\n" entry#text; flush stdout
 	| false ->
 	let query = "insert into TwitterUsers (ID, Name, Followers, TweetsNumber, Priority) values ($1, $2, $3, $4, $5)" in
 	ignore (PGOCaml.prepare dbh ~query ());
@@ -156,7 +156,25 @@ let add_subscription entry dbh () =
 			 Some (string_of_int t);
 			 Some (string_of_int p)]
 			()) with
-	| _ -> printf "Error while adding subscription\n"
+	| _ -> printf "Error while adding subscription\n"; flush stdout
+
+let delete_by_id table dbh id =
+	let condition = match table with
+		| `TwitterUsers -> string_of_column `ID
+		| `Tweet -> string_of_column `UserID
+	in
+	let query = "delete from " ^ string_of_table table ^
+	" where " ^ condition ^ " = $1" in
+	ignore (PGOCaml.prepare dbh ~query ());
+	try ignore (PGOCaml.execute dbh ~params:[Some id]()) with
+	| _ -> printf "Error while deleting subscription\n"; flush stdout
+
+(* let does_db_contain_id dbh table id = *)
+let delete_subscription dbh name =
+	let id = get_id_of_name dbh name in
+	match (does_db_contain_id dbh `TwitterUsers id) with
+	| false -> printf "date base does not contain %s\n" id; flush stdout
+	| true -> delete_by_id `Tweet dbh id; delete_by_id `TwitterUsers dbh id
 
 (* TODO value too long for type character varying(140) *)
 let add_tweet tweet dbh () =

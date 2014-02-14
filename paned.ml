@@ -131,10 +131,15 @@ let insert_text (buffer: GText.buffer) =
 	let iter = buffer#get_iter `START in
 	buffer#insert ~iter ("Welcome!")
 
-let rem_single_sub entry () =
-	printf "rem_single_sub called %s\n" entry#text;
-	flush stdout;
-	()
+let rem_single_sub dbh (model:#GTree.list_store) selection () =
+	let pr path =
+			let row = model#get_iter path in
+			let name = model#get ~row ~column:str_col_subs in
+			Printf.sprintf "%s" name;
+	in
+	let selected_users = List.map pr selection#get_selected_rows in
+	List.iter (fun name -> delete_subscription dbh name) selected_users;
+	refresh_subs_list dbh model
 
 let download_tweets dbh (model1:#GTree.list_store) (model2:#GTree.list_store) selection () =
 	(* TODO there is some duplication :v *)
@@ -173,8 +178,56 @@ let make_third_column hbox buffer scrolled_window =
 	let text = create_text buffer scrolled_window () in
 	vbox3#add text
 
+let print msg () =
+  print_endline msg;
+  flush stdout
+
+let print_toggle selected =
+  if selected
+  then print_endline "On"
+  else print_endline "Off";
+  flush stdout
+
+let print_selected n selected =
+  if selected then (
+    print_endline (string_of_int n);
+    flush stdout
+  )
+
+let file_entries = [
+  `I ("New", print "New");
+  `I ("Open", print "Open");
+  `I ("Save", print "Save");
+  `I ("Save As", print "Save As");
+  `S;
+  `I ("Quit", GMain.Main.quit)
+]
+
+let option_entries = [
+  `C ("Check", false, print_toggle);
+  `S;
+  `R [("Rad1", true, print_selected 1);
+      ("Rad2", false, print_selected 2);
+      ("Rad3", false, print_selected 3)]
+]
+
+let help_entries = [
+  `I ("About", print "About");
+]
+
+let entries = [
+  `M ("File", file_entries);
+  `M ("Options", option_entries);
+  `M ("Help", help_entries)
+]
+
+let create_menu label menubar =
+  let item = GMenu.menu_item ~label ~packing:menubar#append () in
+  GMenu.menu ~packing:item#set_submenu ()
+
+
 let main () =
-	let dbh = PGOCaml.connect ~host:"localhost"  ~user:"adam" 
+	let dbh = PGOCaml.connect ~host:"localhost"  ~user:"adam"
 	~password:"adamb.93" ~database:"adam" () in
 	let window = GWindow.window ~title:"Tweetomat" ~border_width:10
 		~width:650 ~height:400 () in
@@ -186,9 +239,20 @@ let main () =
 	let buffer3 = view3#buffer in
 	let hbox = GPack.hbox ~spacing:5 ~packing:window#add () in
 
+	let menubar = GMenu.menu_bar ~packing:hbox#add () in
+
+	let menu = create_menu "File" menubar in
+	GToolbox.build_menu menu ~entries:file_entries;
+
+	let menu = create_menu "Algorithms" menubar in
+	GToolbox.build_menu menu ~entries:option_entries;
+
+	let menu = create_menu "Help" menubar in
+	GToolbox.build_menu menu ~entries:help_entries;
+
 	let vbox1 = GPack.vbox ~spacing:5 ~packing:hbox#add ~width:150 () in
 	let vbox2 = GPack.vbox ~spacing:5 ~packing:hbox#add ~width:165 () in
-	
+
 	(* #2 column *)
 	let vpaned2 = GPack.paned `VERTICAL ~packing:vbox2#add () in
 	let (model2, treeview2) = create_list_tweets dbh vpaned2 buffer3 () in
@@ -203,7 +267,7 @@ let main () =
 	let button1 = GButton.button ~label:"Subscribe" ~packing:vbox1#add () in
 	ignore (button1#connect#clicked ~callback:(add_user entry dbh model1));
 	let button2 = GButton.button ~label:"Unsubscribe" ~packing:vbox1#add () in
-	ignore (button2#connect#clicked ~callback:(rem_single_sub entry));
+	ignore (button2#connect#clicked ~callback:(rem_single_sub dbh model1 treeview1#selection));
 
 	(* #2 column *)
 	(* Button *)
