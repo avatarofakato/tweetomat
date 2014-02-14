@@ -79,6 +79,16 @@ let get_from_sql ~dbh ?(what = [`Everything]) ~from ?(where = "") () =
 	(fun row -> parse row goal);
 	List.map (List.map cut_quot_marks) !goal
 
+let update_tweets dbh r f =
+	let query = "update " ^ string_of_table `Tweet ^ " set " ^
+				string_of_column `Score ^ " = " ^ string_of_int r ^
+				"*" ^ string_of_column `Retweets ^ "+" ^ string_of_int f ^
+				"*" ^ string_of_column `Favorites in
+	printf "%s\n" query;
+	flush stdout;
+	ignore (PGOCaml.prepare dbh ~query ());
+	PGOCaml.execute dbh ()
+
 let get_subscribers_ids dbh =
 	List.flatten (get_from_sql ~dbh:dbh ~what:[`ID] ~from:`TwitterUsers ())
 
@@ -95,7 +105,8 @@ let get_tweets_dates dbh subs =
 let get_tweets_ids dbh subs =
 	let where = match subs with
 	| [] -> ""
-	| _ -> element_in_set ~column:`UserID ~set:subs in
+	| _ -> (element_in_set ~column:`UserID ~set:subs) ^
+			" order by " ^ string_of_column `Score ^ " asc" in
 	List.flatten (get_from_sql ~dbh:dbh ~what:[`ID] ~from:`Tweet
 		~where:where ())
 

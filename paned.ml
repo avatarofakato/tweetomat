@@ -20,18 +20,18 @@ let refresh_list dbh column content (model:#GTree.list_store) =
 
 let refresh_subs_list dbh (model:#GTree.list_store) =
 	refresh_list dbh str_col_subs (get_subscribers_names dbh) (model:#GTree.list_store)
-	(* model#clear(); *)
-	(* List.iter (fun str -> *)
-		(* let it = model#append () in *)
-		(* model#set ~row:it ~column:str_col_subs str;) (get_subscribers_names dbh) *)
 
 let refresh_tweets_list dbh (model:#GTree.list_store) sub_ids =
 	refresh_list dbh str_col_tweets (get_tweets_ids dbh sub_ids) (model:#GTree.list_store)
-	(* printf "refresh_tweets_list called\n"; *)
-	(* model#clear(); *)
-	(* List.iter (fun str -> printf "****\n%s\n****\n" str; flush stdout; *)
-		(* let it = model#append () in *)
-		(* model#set ~row:it ~column:str_col_tweets str) (get_tweets_ids dbh sub_ids) *)
+
+let get_selected_users selection (model1:#GTree.list_store) =
+	let pr path =
+			let row = model1#get_iter path in
+			let name = model1#get ~row ~column:str_col_subs in
+			Printf.sprintf "%s" name;
+	in
+	List.map pr selection#get_selected_rows
+
 
 let selection_changed_subs dbh (model1:#GTree.list_store) (model2:#GTree.list_store) selection () =
 	let pr path =
@@ -55,7 +55,6 @@ let selection_changed_tweets dbh (model:#GTree.list_store) selection (buffer:#GT
 	in
 	List.iter pr selection#get_selected_rows
 
-(* let create_list dbh vpaned callback col str_col content title mode = *)
 	(* let scrolled_window = GBin.scrolled_window *)
 		(* ~hpolicy:`AUTOMATIC ~vpolicy:`AUTOMATIC () ~height:300 in *)
 
@@ -182,48 +181,15 @@ let print msg () =
   print_endline msg;
   flush stdout
 
-let print_toggle selected =
-  if selected
-  then print_endline "On"
-  else print_endline "Off";
-  flush stdout
-
 let print_selected n selected =
   if selected then (
     print_endline (string_of_int n);
     flush stdout
   )
 
-let file_entries = [
-  `I ("New", print "New");
-  `I ("Open", print "Open");
-  `I ("Save", print "Save");
-  `I ("Save As", print "Save As");
-  `S;
-  `I ("Quit", GMain.Main.quit)
-]
-
-let option_entries = [
-  `C ("Check", false, print_toggle);
-  `S;
-  `R [("Rad1", true, print_selected 1);
-      ("Rad2", false, print_selected 2);
-      ("Rad3", false, print_selected 3)]
-]
-
-let help_entries = [
-  `I ("About", print "About");
-]
-
-let entries = [
-  `M ("File", file_entries);
-  `M ("Options", option_entries);
-  `M ("Help", help_entries)
-]
-
 let create_menu label menubar =
-  let item = GMenu.menu_item ~label ~packing:menubar#append () in
-  GMenu.menu ~packing:item#set_submenu ()
+	let item = GMenu.menu_item ~label ~packing:menubar#append () in
+	GMenu.menu ~packing:item#set_submenu ()
 
 
 let main () =
@@ -238,17 +204,6 @@ let main () =
 	let view3 = GText.view ~packing:scrolled_window3#add () in
 	let buffer3 = view3#buffer in
 	let hbox = GPack.hbox ~spacing:5 ~packing:window#add () in
-
-	let menubar = GMenu.menu_bar ~packing:hbox#add () in
-
-	let menu = create_menu "File" menubar in
-	GToolbox.build_menu menu ~entries:file_entries;
-
-	let menu = create_menu "Algorithms" menubar in
-	GToolbox.build_menu menu ~entries:option_entries;
-
-	let menu = create_menu "Help" menubar in
-	GToolbox.build_menu menu ~entries:help_entries;
 
 	let vbox1 = GPack.vbox ~spacing:5 ~packing:hbox#add ~width:150 () in
 	let vbox2 = GPack.vbox ~spacing:5 ~packing:hbox#add ~width:165 () in
@@ -276,6 +231,46 @@ let main () =
 		~callback:(download_tweets dbh model1 model2 treeview1#selection));
 
 	make_third_column hbox buffer3 scrolled_window3;
+
+	let basic selected =
+		printf "basic\n"; flush stdout;
+		if selected then ( printf "basic\n"; flush stdout;
+			update_tweets dbh 1 1;
+			refresh_tweets_list dbh model2 (List.map (get_id_of_name dbh)
+			(get_selected_users treeview1#selection model1))
+		)in
+
+	let favor selected =
+		printf "favor\n"; flush stdout;
+		if selected then ( printf "favors\n"; flush stdout;
+			update_tweets dbh 1 2;
+			refresh_tweets_list dbh model2 (List.map (get_id_of_name dbh)
+			(get_selected_users treeview1#selection model1))
+		) in
+
+	let retw selected =
+		printf "retw\n"; flush stdout;
+		if selected then ( printf "retweets\n"; flush stdout;
+			update_tweets dbh 2 1;
+			refresh_tweets_list dbh model2 (List.map (get_id_of_name dbh)
+			(get_selected_users treeview1#selection model1))
+		) in
+
+	let algorithms = [
+		`R [("Basic", true, basic);
+			("Favorites", false, favor);
+			("Retweets", false, retw)]
+	] in
+	
+	let entries = [
+		`M ("Options", algorithms);
+	] in
+
+	let menubar = GMenu.menu_bar ~packing:hbox#add () in
+
+	let menu = create_menu "Algorithms" menubar in
+	GToolbox.build_menu menu ~entries:algorithms;
+
 
 	window#show ();
 	GMain.Main.main ()

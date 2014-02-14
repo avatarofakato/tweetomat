@@ -27,10 +27,6 @@ type user =
 	priority : int
 }
 
-(* TODO move to algorithm module *)
-let basic_score retweets favorites =
-	2 * retweets + favorites
-
 let parse_user json =
 	{
 		id = json |> member "user" |> member "id" |> to_int;
@@ -74,7 +70,7 @@ let get_parsed_tweets ~number_of_tweets:num ~user:user =
 	let json = (Yojson.Basic.from_string json_raw) in
 	let json_list = try Some (json |> to_list) with _ -> None in
 	match json_list with
-	| Some x -> List.map (parse_tweet basic_score) x
+	| Some x -> List.map (parse_tweet Algorithm.fondamental) x
 	| None -> raise Twitter_error
 
 let get_user ~user:user =
